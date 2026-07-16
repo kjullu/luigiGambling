@@ -32,6 +32,7 @@ public class GameServer {
         public Draw(GameEngine engine) {
             this.engine = engine;
         }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             if (!"GET".equals(exchange.getRequestMethod())) {
@@ -40,10 +41,24 @@ public class GameServer {
                 return;
             }
             ArrayList<Integer> cards = new ArrayList<Integer>();
-            cards = engine.Draw(5);
+            String playerID;
+            try {
+                playerID = exchange.getRequestHeaders().getFirst("id");
+            } catch (Exception e) {
+                String msg = "{\"error\": \"You need an ID header\"}";
+                sendJson(exchange, 405, msg);
+                return;
+            }
+            if (playerID == null || playerID.isBlank()) {
+                sendJson(exchange, 400, "{\"error\": \"Missing ID header\"}");
+                return;
+            }
+
+            cards = engine.Draw(5, playerID);
+            String gameStatus = engine.getStatus();
 
             // For now, just echo back a fake playerId
-            String response = "{\"status\": \"ok\", \"cards\": \"" + cards + "\"}";
+            String response = "{\"status\": \"" + gameStatus + "\", \"cards\": \"" + cards + "\"}";
 
             sendJson(exchange, 200, response);
         }
@@ -51,8 +66,10 @@ public class GameServer {
 
     static class Start implements HttpHandler {
         private GameEngine engine;
+        private String gameStatus;
         public Start(GameEngine engine) {
             this.engine = engine;
+            gameStatus = engine.getStatus();
         }
 
         @Override
@@ -84,7 +101,10 @@ public class GameServer {
             cards = engine.Draw(5);
             String id = engine.player(name);
 
-            String response = "{\"status\": \"ok\", \"cards\": \"" + cards + "\", \"id\": \"" + id + "\"}";
+            String response = "{\"status\": \"" + this.gameStatus +
+                              "\", \"cards\": \"" + cards +
+                              "\", \"id\": \"" + id +
+                              "\"}";
 
             sendJson(exchange, 200, response);
         }
